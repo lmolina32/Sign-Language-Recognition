@@ -12,3 +12,6 @@ class Segmentation:
     def __init__(self):
         pass
     
+class FeatureExtraction():
+    def __init__(self):
+        pass
