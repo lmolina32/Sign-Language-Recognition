@@ -8,7 +8,7 @@ class Preprocessor:
     def __init__(self, target_size: set=(224, 224)):
         self.target_size: set = target_size
 
-    def resize(self, img):
+    def resize(self, img, target_size: set=(224,224)):
         """resize the img to the target size while keeping ratio"""
         h, w = img.shape[:2]
         scale = min(self.target_size[0] / h, self.target_size[1] / w)
@@ -19,6 +19,9 @@ class Preprocessor:
         x_off = (self.target_size[1] - new_w) // 2
         canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
         return canvas
+
+    def run(self, img): 
+        pass 
     
 class Segmentation:
     def __init__(self):
