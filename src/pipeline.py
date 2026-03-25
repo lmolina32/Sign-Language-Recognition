@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import os 
 import cv2 
 import numpy as np 
-import os 
+from skimage.feature import hog as skimage_hog
 
 class Preprocessor:
     def __init__(self):
@@ -32,9 +33,9 @@ class Preprocessor:
         """Perform gaussian blur on the img for smoothing"""
         return cv2.GaussianBlur(img, ksize, sigma)
 
-    def clahe_enhancement(self, image, clip_limit=2.0, tile_size=8):
+    def clahe_enhancement(self, img, clip_limit=2.0, tile_size=8):
         """Perform clahe enchancement for improving local contrast"""
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(tile_size, tile_size))
         l_enhanced = clahe.apply(l)
@@ -51,7 +52,47 @@ class Preprocessor:
 class Segmentation:
     def __init__(self):
         pass
+
+    def hsv_mask(self, img):
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower = np.array([0, 30, 60], dtype=np.uint8)
+        upper = np.array([25, 170, 255], dtype=np.uint8)
+        return cv2.inRange(hsv, lower, upper)
+
+    def refine_mask(self, mask):
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        return cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        
     
 class FeatureExtraction():
     def __init__(self):
         pass
+
+    def extract_canny_edges(self, img, val: int=35, ksize: int=3, ratio: int=3):
+        src_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        low_threshold = val
+        img_blur = cv2.blur(src_gray, (3,3))
+        detected_edges = cv2.Canny(img_blur, low_threshold, low_threshold*ratio, ksize)
+        mask = detected_edges != 0
+        return img * (mask[:,:,None].astype(img.dtype))
+
+    def compute_hog(self, image, mask=None, pixels_per_cell=(16, 16),
+                    cells_per_block=(2, 2), orientations=9):
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        if mask is not None:
+            gray = cv2.bitwise_and(gray, gray, mask=mask)
+
+        hog_features, hog_image = skimage_hog(
+            gray,
+            orientations=orientations,
+            pixels_per_cell=pixels_per_cell,
+            cells_per_block=cells_per_block,
+            block_norm='L2-Hys',
+            visualize=True,
+            feature_vector=True
+        )
+
+        hog_image = (hog_image * 255).clip(0, 255).astype(np.uint8)
+        return hog_image
