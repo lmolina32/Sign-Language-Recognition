@@ -49,7 +49,13 @@ class Preprocessor:
 
     def preprocess(self, img: np.ndarray) -> np.ndarray:
         """Full preprocessing chain: resize -> CLAHE -> Gaussian blur."""
-        return self.gaussian_blur(self.clahe_enhancement(self.resize(img)))
+        gamma_correction = self.gamma_correction(img)
+        bilateral_filter = self.bilateral_filter(img)
+        return {
+            'final': self.gaussian_blur(self.clahe_enhancement(self.resize(img))),
+            'gamma_correction': gamma_correction,
+            'bilateral_filter': bilateral_filter
+        } 
 
     @staticmethod
     def to_rgb(img: np.ndarray) -> np.ndarray:
@@ -105,13 +111,17 @@ class Segmentation:
 
     def segment(self, img: np.ndarray) -> tuple:
         """Full segmentation pipeline. Returns results, dictionary with all segmentation operations."""
-        results = {
-            'hsv_mask': self.hsv_mask(img),
-            'ycrcb_mask': self.ycrcb_mask(img),
-            'contour': self.get_largest_contour(img)
+        mask = self.ycrcb_mask(img)
+        contour, clean_mask = self.get_largest_contour(mask)
+        hsv_mask = self.hsv_mask(img)
+        refined_mask = self.refine_mask(hsv_mask)
+        return {
+            'ycrcb_mask': mask,
+            'contour_mask': clean_mask,
+            'hsv_mask': hsv_mask,
+            'refined_mask': refined_mask,
+            'contour': contour 
         }
-        results['refined_mask'] = self.refine_mask(results['hsv_mask'])
-        return results
     
 class FeatureExtraction:
 
@@ -195,7 +205,7 @@ class FeatureExtraction:
             HOG (26244) + contour descriptors (6) + Hu moments (7) = 26257
         """
         canny_edges = self.extract_canny_edges(img)
-        hog_feats, _ = self.extract_hog(img)
+        hog_feats, hog_img = self.extract_hog(img)
         contour_dict = self.extract_contour_features(contour, mask)
         contour_arr = np.array(list(contour_dict.values()), dtype=np.float64)
         hu = self.extract_hu_moments(contour)
@@ -203,6 +213,7 @@ class FeatureExtraction:
         return {
             'canny_edges': canny_edges,
             'hog_feats': hog_feats,
+            'hog_img': hog_img,
             'contour_arr': contour_arr,
             'hu': hu,
             'features': features
