@@ -52,6 +52,9 @@ class Preprocessor:
         gamma_correction = self.gamma_correction(img)
         bilateral_filter = self.bilateral_filter(img)
         return {
+            'resize': self.resize(img),
+            'gaussian_blur': self.gaussian_blur(img),
+            'clahe_enhancement': self.clahe_enhancement(img),
             'final': self.gaussian_blur(self.clahe_enhancement(self.resize(img))),
             'gamma_correction': gamma_correction,
             'bilateral_filter': bilateral_filter
