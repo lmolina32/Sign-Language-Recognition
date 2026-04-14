@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import pytest
+
 import sys
 import os
-import pytest
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
