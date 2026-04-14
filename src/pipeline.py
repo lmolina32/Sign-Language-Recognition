@@ -1,41 +1,38 @@
 #!/usr/bin/env python3
 
-import os 
-import cv2 
-import numpy as np 
+import os
+import cv2
+import numpy as np
 from skimage import feature as skfeature, exposure as skexposure
+
 
 class Preprocessor:
     def __init__(self):
         pass
 
-    def resize(self, img, target_size: tuple=(224,224)):
+    def resize(self, img, target_size: tuple = (224, 224)):
         """Resize to target_size preserving aspect ratio; pad remainder with black."""
-        h, w = img.shape[:2]
-        scale = min(target_size[0] / h, target_size[1] / w)
-        new_w, new_h = int(w * scale), int(h * scale)
-        resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-        canvas = np.zeros((target_size[0], target_size[1], 3), dtype=np.uint8)
-        y_off = (target_size[0] - new_h) // 2
-        x_off = (target_size[1] - new_w) // 2
-        canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
-        return canvas
+        return cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
 
-    def gamma_correction(self, img: np.ndarray, gamma: int=1.0):
+    def gamma_correction(self, img: np.ndarray, gamma: int = 1.0):
         """Perform Gamma correction to image to adjust brightness"""
         inv_gamma = 1.0 / gamma
-        table = np.array([
-            ((i / 255.0) ** inv_gamma) * 255 for i in range(256)
-        ]).astype(np.uint8)
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype(
+            np.uint8
+        )
         return cv2.LUT(img, table)
 
-    def bilateral_filter(self, img: np.ndarray, d: int=9, sigmaColor: int=75, sigmaSpace=75):
+    def bilateral_filter(
+        self, img: np.ndarray, d: int = 9, sigmaColor: int = 75, sigmaSpace=75
+    ):
         """Perform bilateral filtering on image to smooth image while preserving edges"""
-        return cv2.bilateralFilter(img, d=d, sigmaColor=sigmaColor, sigmaSpace=sigmaSpace)
+        return cv2.bilateralFilter(
+            img, d=d, sigmaColor=sigmaColor, sigmaSpace=sigmaSpace
+        )
 
-    
-    def clahe_enhancement(self, img: np.ndarray, clip_limit: float = 2.0,
-                    tile_grid_size: tuple = (8, 8)) -> np.ndarray:
+    def clahe_enhancement(
+        self, img: np.ndarray, clip_limit: float = 2.0, tile_grid_size: tuple = (8, 8)
+    ) -> np.ndarray:
         """CLAHE on the L channel of LAB color space for illumination normalization."""
         lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
@@ -52,13 +49,13 @@ class Preprocessor:
         gamma_correction = self.gamma_correction(img)
         bilateral_filter = self.bilateral_filter(img)
         return {
-            'resize': self.resize(img),
-            'gaussian_blur': self.gaussian_blur(img),
-            'clahe_enhancement': self.clahe_enhancement(img),
-            'final': self.gaussian_blur(self.clahe_enhancement(self.resize(img))),
-            'gamma_correction': gamma_correction,
-            'bilateral_filter': bilateral_filter
-        } 
+            "resize": self.resize(img),
+            "gaussian_blur": self.gaussian_blur(img),
+            "clahe_enhancement": self.clahe_enhancement(img),
+            "gamma_correction": gamma_correction,
+            "bilateral_filter": bilateral_filter,
+            "final": self.gaussian_blur(self.clahe_enhancement(self.resize(img))),
+        }
 
     @staticmethod
     def to_rgb(img: np.ndarray) -> np.ndarray:
@@ -93,7 +90,7 @@ class Segmentation:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
         return cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-        
+
     def ycrcb_mask(self, img: np.ndarray) -> np.ndarray:
         """Binary skin mask via YCrCb thresholding + morphological opening."""
         ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
@@ -119,28 +116,35 @@ class Segmentation:
         hsv_mask = self.hsv_mask(img)
         refined_mask = self.refine_mask(hsv_mask)
         return {
-            'ycrcb_mask': mask,
-            'contour_mask': clean_mask,
-            'hsv_mask': hsv_mask,
-            'refined_mask': refined_mask,
-            'contour': contour 
+            "ycrcb_mask": mask,
+            "contour_mask": clean_mask,
+            "hsv_mask": hsv_mask,
+            "refined_mask": refined_mask,
+            "contour": contour,
         }
-    
+
+
 class FeatureExtraction:
 
-    def __init__(self, orientations: int = 9, pixels_per_cell: tuple = (8, 8),
-                 cells_per_block: tuple = (2, 2)):
+    def __init__(
+        self,
+        orientations: int = 9,
+        pixels_per_cell: tuple = (8, 8),
+        cells_per_block: tuple = (2, 2),
+    ):
         self.orientations = orientations
         self.pixels_per_cell = pixels_per_cell
         self.cells_per_block = cells_per_block
 
-    def extract_canny_edges(self, img, val: int=35, ksize: int=3, ratio: int=3):
+    def extract_canny_edges(self, img, val: int = 35, ksize: int = 3, ratio: int = 3):
         src_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         low_threshold = val
-        img_blur = cv2.blur(src_gray, (3,3))
-        detected_edges = cv2.Canny(img_blur, low_threshold, low_threshold*ratio, ksize)
+        img_blur = cv2.blur(src_gray, (3, 3))
+        detected_edges = cv2.Canny(
+            img_blur, low_threshold, low_threshold * ratio, ksize
+        )
         mask = detected_edges != 0
-        return img * (mask[:,:,None].astype(img.dtype))
+        return img * (mask[:, :, None].astype(img.dtype))
 
     def extract_hog(self, img: np.ndarray) -> tuple:
         """HOG features + rescaled visualization image.
@@ -186,12 +190,12 @@ class FeatureExtraction:
         except cv2.error:
             pass
         return {
-            'area': area,
-            'perimeter': perimeter,
-            'solidity': solidity,
-            'aspect_ratio': aspect_ratio,
-            'extent': extent,
-            'num_defects': num_defects,
+            "area": area,
+            "perimeter": perimeter,
+            "solidity": solidity,
+            "aspect_ratio": aspect_ratio,
+            "extent": extent,
+            "num_defects": num_defects,
         }
 
     def extract_hu_moments(self, contour_or_mask: np.ndarray) -> np.ndarray:
@@ -200,8 +204,9 @@ class FeatureExtraction:
         hu = cv2.HuMoments(M).flatten()
         return -np.sign(hu) * np.log10(np.abs(hu) + 1e-10)
 
-    def extract_all(self, img: np.ndarray, contour: np.ndarray,
-                    mask: np.ndarray) -> np.ndarray:
+    def extract_all(
+        self, img: np.ndarray, contour: np.ndarray, mask: np.ndarray
+    ) -> np.ndarray:
         """Concatenate all features into a single flat vector.
 
         At default HOG settings on 224x224:
@@ -214,10 +219,11 @@ class FeatureExtraction:
         hu = self.extract_hu_moments(contour)
         features = np.concatenate([hog_feats, contour_arr, hu])
         return {
-            'canny_edges': canny_edges,
-            'hog_feats': hog_feats,
-            'hog_img': hog_img,
-            'contour_arr': contour_arr,
-            'hu': hu,
-            'features': features
+            "canny_edges": canny_edges,
+            "hog_feats": hog_feats,
+            "hog_img": hog_img,
+            "contour_dict": contour_dict,
+            "contour_arr": contour_arr,
+            "hu": hu,
+            "features": features,
         }
