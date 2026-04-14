@@ -6,8 +6,10 @@ from typing import Tuple, List
 CLASSES = list("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 CLASSES_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
 
+Pairs = List[Tuple[str, int]]
 
-def load_image_label_pairs(root_dir: str) -> List[Tuple[str, int]]:
+
+def load_image_label_pairs(root_dir: str) -> Pairs:
     """Load (image_path, label_idx) pairs from a directory
 
     Args:
@@ -35,3 +37,28 @@ def load_image_label_pairs(root_dir: str) -> List[Tuple[str, int]]:
             raise ValueError("Expected class must be from 0-9 or A-Z")
         pairs.append((str(fp), CLASSES_TO_IDX[img_class]))
     return pairs
+
+
+def split_by_subject(pairs, train_subjects, val_subjects) -> Tuple[Pairs, Pairs]:
+    """Split training and validation based on subjects
+
+    Args:
+        train_subjects (list[str]): list of training subjects by number
+        val_subjects (list[str]): list of validators subjects by number
+    """
+    train, val = [], []
+
+    for path, label in pairs:
+        image_path = Path(path).parts[-1]
+        image_suffix = Path(image_path).stem
+        try:
+            participant_id = image_suffix.split("_")[0][1:]
+        except (KeyError, IndentationError, IndexError):
+            raise ValueError(
+                "Expected files of the format p{paritcipant number}_{img_class}_{img_number}"
+            )
+        if participant_id in train_subjects:
+            train.append((str(path), label))
+        elif participant_id in val_subjects:
+            val.append((str(path), label))
+    return train, val
