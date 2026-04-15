@@ -67,7 +67,8 @@ def train_cnn(
     for epoch in range(epochs):
         model.train()
         total_loss, correct, total = 0.0, 0, 0
-        for x, y in train_loader:
+        print(f"\n[Epoch {epoch+1}/{epochs}] Starting training...")
+        for batch_idx, (x, y) in enumerate(train_loader):
             x, y = x.to(device), y.to(device)
             optimizer.zero_grad()
             logits = model(x)
@@ -77,19 +78,31 @@ def train_cnn(
             total_loss += loss.item() * x.size(0)
             correct += (logits.argmax(1) == y).sum().item()
             total += x.size(0)
+            if batch_idx % 10 == 0:
+                print(
+                    f"  [Epoch {epoch+1}, Batch {batch_idx}] "
+                    f"loss={total_loss/total:.4f}, acc={correct/total:.4f}, "
+                    f"samples_seen={total}"
+                )
         train_loss = total_loss / total
         train_acc = correct / total
 
         model.eval()
         v_loss, v_correct, v_total = 0.0, 0, 0
+        print(f"  [Epoch {epoch+1}] Running validation...")
         with torch.no_grad():
-            for x, y in val_loader:
+            for batch_idx, (x, y) in enumerate(val_loader):
                 x, y = x.to(device), y.to(device)
                 logits = model(x)
                 loss = criterion(logits, y)
                 v_loss += loss.item() * x.size(0)
                 v_correct += (logits.argmax(1) == y).sum().item()
                 v_total += x.size(0)
+                if batch_idx % 10 == 0:
+                    print(
+                        f"  [Val Batch {batch_idx}] "
+                        f"running_loss={v_loss/v_total:.4f}, acc={v_correct/v_total:.4f}"
+                    )
         val_loss = v_loss / v_total
         val_acc = v_correct / v_total
 
