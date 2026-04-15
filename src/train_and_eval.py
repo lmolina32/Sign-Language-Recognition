@@ -17,7 +17,7 @@ from .classifer import train_cnn, evaluate_cnn, evaluation_report
 
 
 def main():
-    print('here')
+    print("here")
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="Path to dataset")
     parser.add_argument("--output", default="results")
@@ -27,7 +27,6 @@ def main():
     parser.add_argument("--val-subjects", type=int, nargs="+", default=[8, 9, 10])
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument()
 
     args = parser.parse_args()
 
@@ -36,7 +35,7 @@ def main():
 
     pairs = load_image_label_pairs(args.data)
     train_pairs, val_pairs = split_by_subject(
-        pairs, list(out.train_subjects), list(out.val_subjects)
+        pairs, list(args.train_subjects), list(args.val_subjects)
     )
 
     results = {
@@ -48,7 +47,10 @@ def main():
             "n_val": len(val_pairs),
             "n_classes": len(CLASSES),
             "epochs": args.epochs,
-            "svm_C": args.svm_C,
         }
     }
     print(json.dumps(results))
+
+
+if __name__ == "__main__":
+    main()
