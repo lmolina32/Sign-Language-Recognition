@@ -30,16 +30,16 @@ def test_load_image_label_pairs(data_path) -> None:
 
 def test_split_by_subject(data_path) -> None:
     pairs = load_image_label_pairs(str(data_path))
-    trains, vals = split_by_subject(pairs, ["1"], ["3"])
+    trains, vals = split_by_subject(pairs, [1], [3])
 
     for path, _ in trains:
         image_path = Path(path).parts[-1]
         image_suffix = Path(image_path).stem
         id = image_suffix.split("_")[0][1:]
-        assert id == "1"
+        assert int(id) == 1
 
     for path, _ in vals:
         image_path = Path(path).parts[-1]
         image_suffix = Path(image_path).stem
         id = image_suffix.split("_")[0][1:]
-        assert id == "3"
+        assert int(id) == 3

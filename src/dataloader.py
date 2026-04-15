@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from pipeline import Preprocessor
+from .pipeline import Preprocessor
 
 CLASSES = list("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 CLASSES_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
@@ -49,8 +49,8 @@ def split_by_subject(pairs, train_subjects, val_subjects) -> Tuple[Pairs, Pairs]
     """Split training and validation based on subjects
 
     Args:
-        train_subjects (list[str]): list of training subjects by number
-        val_subjects (list[str]): list of validators subjects by number
+        train_subjects (list[int]): list of training subjects by number
+        val_subjects (list[int]): list of validators subjects by number
     """
     train, val = [], []
 
@@ -58,7 +58,7 @@ def split_by_subject(pairs, train_subjects, val_subjects) -> Tuple[Pairs, Pairs]
         image_path = Path(path).parts[-1]
         image_suffix = Path(image_path).stem
         try:
-            participant_id = image_suffix.split("_")[0][1:]
+            participant_id = int(image_suffix.split("_")[0][1:])
         except (KeyError, IndentationError, IndexError):
             raise ValueError(
                 "Expected files of the format p{paritcipant number}_{img_class}_{img_number}"
@@ -103,7 +103,7 @@ class ASLDataset(Dataset):
                 interpolation=cv2.INTER_AREA,
             )
 
-        # augment the data if flag passed in 
+        # augment the data if flag passed in
         if self.augment:
             if np.random.random() < 0.5:
                 x = cv2.flip(x, 1)
@@ -111,7 +111,7 @@ class ASLDataset(Dataset):
                 jitter = np.random.uniform(0.85, 1.15)
                 x = np.clip(x.astype(np.float32) * jitter, 0, 255).astype(np.uint8)
 
-        # BGR -> RGB -> normalize -> center around 0 -> convert to torch tensor 
+        # BGR -> RGB -> normalize -> center around 0 -> convert to torch tensor
         x = cv2.cvtColor(x, cv2.COLOR_BGR2RGB)
         x = x.astype(np.float32) / 255.0
         x = (x - 0.5) / 0.5
