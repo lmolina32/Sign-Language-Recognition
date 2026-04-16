@@ -357,13 +357,22 @@ the predicted class letter.
 
 ## Part 4 individual contributions
 
-- **Alphonsus (Al):** SVM classifier design + justification, train/eval split (subject-wise),
-  HOG + contour + Hu feature vector construction, the hand-bbox-crop small improvement,
-  `src/classifer.py:SVMClassifer`, evaluation reporting (`evaluation_report`, confusion
-  matrix plotting), most of this Part 4 writeup, the `scripts/demo.py` sample runner,
-  `preprocess_final` hot-path optimization, AMP + MPS support in `train_cnn`, bug fixes in
-  `src/eval.py`.
-- **Leo:** CNN architecture (`src/classifer.py:CNN`), CNN training loop (`train_cnn`),
-  dataloader subject split and augmentation logic (`src/dataloader.py`), train/eval entry
-  points and CLI (`src/train.py`, `src/eval.py`), recorded CNN run
-  (`results/CNN_output_results.md`) and produced the CNN metrics + checkpoints.
+- **Leo:** all of the initial Part 4 work — SVM classifier design (RBF kernel, PCA-300,
+  `StandardScaler` pipeline) and the `SVMClassifer` wrapper in `src/classifer.py`; CNN
+  architecture (`src/classifer.py:CNN`) and the CNN training loop (`train_cnn`); the
+  subject-wise dataloader and augmentation logic in `src/dataloader.py`; the
+  `extract_features` HOG + contour + Hu feature-vector builder; the first version of the
+  train and eval CLIs (`src/train.py`, `src/eval.py`), including the SVM and CNN evaluation
+  reporting paths and the confusion-matrix plotting; the initial CNN training run
+  (`results/CNN_output_results.md`) and the checkpoint + metrics JSON artifacts it produced.
+- **Alphonsus (Al):** everything added in this milestone on top of Leo's Part 4 work —
+  the `Preprocessor.preprocess_final` hot-path optimization in `src/pipeline.py`; the
+  hand-bounding-box HOG crop (`FeatureExtraction.crop_to_contour` + the `hand_bbox_crop`
+  flag on `extract_all`), including the re-run that produced the current
+  `results/svm_metrics.json` and confusion-matrix plot; AMP + `pick_device` (CUDA → MPS →
+  CPU) support in `train_cnn`; the `--num-workers`, `--amp`, `pin_memory`, and
+  `persistent_workers` plumbing in `src/train.py`; bug fixes in `src/eval.py` (CNN plot
+  title, printed metrics path); the `scripts/demo.py` single-image runner; `.gitignore`
+  updates (PDFs, `*.pth`, cache dirs); and this Part 4 writeup (classifier justification,
+  results table, commentary on the bbox-crop regression, follow-up proposals, and run
+  instructions).
