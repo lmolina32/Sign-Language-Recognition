@@ -1,0 +1,50 @@
+{
+  "config": {
+    "data": "data/all",
+    "image_dim": 96,
+    "batch_size": 32,
+    "lr": 0.001,
+    "train_subjects": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "val_subjects": [
+      8,
+      9,
+      10
+    ],
+    "n_train": 25200,
+    "n_val": 10800,
+    "n_classes": 36,
+    "epochs": 10
+  },
+  "svm": {
+    "train": {
+      "accuracy": 1.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "macro_f1": 1.0,
+      "weighted_precision": 1.0,
+      "weighted_recall": 1.0,
+      "weighted_f1": 1.0,
+      "n_correct": 25200,
+      "n_total": 25200
+    },
+    "val": {
+      "accuracy": 0.7640740740740741,
+      "macro_precision": 0.7741850897174529,
+      "macro_recall": 0.764074074074074,
+      "macro_f1": 0.7488455088517987,
+      "weighted_precision": 0.7741850897174528,
+      "weighted_recall": 0.7640740740740741,
+      "weighted_f1": 0.7488455088517986,
+      "n_correct": 8252,
+      "n_total": 10800
+    }
+  }
+}
