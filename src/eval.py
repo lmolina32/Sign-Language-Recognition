@@ -90,6 +90,15 @@ def evalute_cnn_saved_model(
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
+
+    print(f"loading model from {args.cnn_path}")
+    model = CNN(num_classes=len(CLASSES)).to(device)
+    checkpoint = torch.load(args.cnn_path, map_location=device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.to(device)
+    model.eval()
+
+    print("loading train and val datasets")
     train_eval_ds = ASLDataset(
         train_pairs, augment=False, cnn_input_size=args.image_input
     )
@@ -101,14 +110,12 @@ def evalute_cnn_saved_model(
         val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
-    model = CNN(num_classes=len(CLASSES)).to(device)
-    checkpoint = torch.load(args.cnn_path)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.eval()
-
+    print("Running training evalution of cnn")
     y_train_pred, y_train_true, _ = evaluate_cnn(model, train_eval_loader, device)
+    print("Running validation evalution of cnn")
     y_val_pred, y_val_true, _ = evaluate_cnn(model, val_loader, device)
 
+    print("creating reports")
     train_metrics = evaluation_report(y_train_true, y_train_pred)
     val_metrics = evaluation_report(y_val_true, y_val_pred)
 
@@ -127,7 +134,11 @@ def evalute_cnn_saved_model(
         "val": val_metrics,
     }
 
-    cm = confusion_matrix(y_train_true, y_val_pred, labels=list(range(len(CLASSES))))
+    with open(out / "cnn_metrics.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\nAll metrics saved to {out / 'metrics.json'}")
+
+    cm = confusion_matrix(y_val_true, y_val_pred, labels=list(range(len(CLASSES))))
     np.save(out / "cnn_confusion_matrix.npy", cm)
     # Create the plot
     plt.figure(figsize=(10, 8))
@@ -144,10 +155,6 @@ def evalute_cnn_saved_model(
     plt.ylabel("Actual Label")
     plt.xlabel("Predicted Label")
     plt.savefig(out / "cnn_confusion_matrix_plot.png", dpi=300, bbox_inches="tight")
-
-    with open(out / "cnn_metrics.json", "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\nAll metrics saved to {out / 'metrics.json'}")
 
 
 def main():
@@ -207,7 +214,7 @@ def main():
     if args.svm:
         evaluate_svm(args, train_pairs, val_pairs, out)
     else:
-        evalute_cnn_saved_model()
+        evalute_cnn_saved_model(args, train_pairs, val_pairs, results, out)
 
 
 if __name__ == "__main__":
