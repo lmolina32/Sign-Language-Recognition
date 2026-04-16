@@ -2,10 +2,88 @@
 
 import gc
 import numpy as np
+import pickle
+import cv2
 import torch
 import torch.nn as nn
-from torch.utils.data import dataloader
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from .pipeline import Preprocessor, Segmentation, FeatureExtraction
+
+
+def extract_features(pairs, pixels_per_cell=(16, 16), target_size=(224, 244)):
+    preprocessor = Preprocessor()
+    segmentation = Segmentation()
+    featureextraction = FeatureExtraction(pixels_per_cell=pixels_per_cell)
+
+    X, y = [], []
+    for i, (path, label) in enumerate(pairs):
+        img = cv2.imread(path)
+        if img is None:
+            continue
+        prep = preprocessor.preprocess(img)
+        prep_img = preprocessor.resize(prep["final"], target_size=target_size)
+        seg = segmentation.segment(prep_img)
+        feats = featureextraction.extract_all(
+            prep_img, seg["contour"], seg["ycrcb_mask"]
+        )
+        X.append(feats["features"].astype(np.float32))
+        y.append(label)
+
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int64)
+
+
+class SVMClassifer:
+    def __init__(self, C=10.0, use_pca=True, n_components=300) -> None:
+        steps = [("scaler", StandardScaler(with_mean=False))]
+        if use_pca:
+            steps.append(
+                (
+                    "pca",
+                    PCA(
+                        n_components=n_components,
+                        random_state=42,
+                        svd_solver="randomized",
+                    ),
+                )
+            )
+        steps.append(
+            (
+                "svm",
+                SVC(
+                    kernel="rbf",
+                    C=C,
+                    gamma="scale",
+                    random_state=42,
+                    verbose=True,
+                    max_iter=1000,
+                ),
+            )
+        )
+
+        self.model = Pipeline(steps)
+
+    def fit(self, X_train, y_train):
+        self.model.fit(X_train, y_train)
+        return self
+
+    def predict(self, X):
+        return self.model.predict(X)
+
+    def score(self, X, y):
+        return self.model.score(X, y)
+
+    def save(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self.model, f)
+
+    def load(self, path):
+        with open(path, "rb") as f:
+            self.model = pickle.load(f)
+        return self
 
 
 class CNN(nn.Module):
@@ -48,6 +126,7 @@ class CNN(nn.Module):
 def train_cnn(
     train_loader,
     val_loader,
+    out,
     num_classes=36,
     epochs=15,
     lr=1e-3,
@@ -110,6 +189,19 @@ def train_cnn(
         history["train_acc"].append(train_acc)
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
+
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+            },
+            out / f"checkpoint_epoch_{epoch+1}.pth",
+        )
+
+        print(f"  Checkpoint saved for epoch {epoch+1}")
         scheduler.step()
 
         if verbose:
