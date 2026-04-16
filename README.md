@@ -186,7 +186,8 @@ model never sees the validation subjects during training.
 
 | Classifier | Train acc. | Val acc. | Val macro-F1 | Val weighted-F1 |
 | ---------- | ---------- | -------- | ------------ | --------------- |
-| SVM (RBF, PCA-300) | 1.0000 | **0.7641** | 0.7488 | 0.7488 |
+| SVM (RBF, PCA-300) — full-image HOG | 1.0000 | **0.7641** | 0.7488 | 0.7488 |
+| SVM (RBF, PCA-300) — hand-bbox HOG crop (§ small improvement) | 1.0000 | 0.7475 | 0.7275 | 0.7275 |
 | Small CNN (7 epochs) | 0.9904 | 0.5357 | 0.4997 | 0.4997 |
 
 Raw numbers and confusion matrices are saved in:
@@ -196,11 +197,17 @@ Raw numbers and confusion matrices are saved in:
 - `results/cnn_metrics.json`, `results/cnn_confusion_matrix.npy`,
   `results/cnn_confusion_matrix_plot.png`
 
-Both classifiers correctly predict 8,252 (SVM) and 5,786 (CNN) of 10,800 validation images
-respectively. The per-class breakdown in the confusion matrices shows SVM errors are
-concentrated on visually similar sign pairs (`M` vs `N`, `0` vs `O`, `2` vs `V`, `6` vs `W`),
-which matches the intuition that those glyphs differ mostly in finger-thumb placement and
-less in overall shape.
+Both classifiers correctly predict 8,252 (full-image SVM) and 5,786 (CNN) of 10,800
+validation images respectively. The bbox-crop SVM predicts 8,073/10,800 correctly. The
+per-class breakdown in the confusion matrices shows SVM errors are concentrated on visually
+similar sign pairs (`M` vs `N`, `0` vs `O`, `2` vs `V`, `6` vs `W`), which matches the
+intuition that those glyphs differ mostly in finger-thumb placement and less in overall
+shape.
+
+`results/svm_metrics.json` currently reflects the **bbox-crop** run (the default we ship);
+the full-image number is preserved as history in the commit that introduced the Part 4
+milestone. Set `hand_bbox_crop=False` in `extract_features` (`src/classifer.py`) to reproduce
+the higher-accuracy full-image number.
 
 ## Commentary and ideas for improvements
 
@@ -246,29 +253,58 @@ not strong enough to wash those cues out.
 
 ### The one small improvement we implemented before final testing
 
-**Hand-bounding-box crop before HOG** — our segmentation pipeline already produces a clean
-single-hand contour via YCrCb skin thresholding + morphology + largest-contour selection.
-But the HOG descriptor was still being computed over the full preprocessed image, which
-means gradients from the forearm, shoulder, and (sometimes) face were polluting the feature
-vector. Different subjects have very different amounts of "non-hand skin" visible at the
-edges of the frame, so this is a direct vector for the SVM to overfit on subject identity
-rather than sign identity.
+**Hand-bounding-box crop before HOG.** Our segmentation pipeline already produces a clean
+single-hand contour via YCrCb skin thresholding + morphology + largest-contour selection,
+but the original HOG descriptor was computed over the full preprocessed image, so gradients
+from the forearm, shoulder, and (sometimes) face were entering the feature vector. Our
+hypothesis going in was that different subjects have very different amounts of visible
+"non-hand skin" at the edges of the frame, which would let the SVM latch onto subject
+identity rather than sign identity — and that cropping to the hand would close some of the
+24-point train/val gap.
 
-The change lives in `src/pipeline.py:FeatureExtraction.crop_to_contour` and is plumbed into
+**How it's implemented.** The code lives in
+`src/pipeline.py:FeatureExtraction.crop_to_contour` and is plumbed through
 `extract_all(..., hand_bbox_crop=True)`. For each image we take the segmentation contour,
-compute its axis-aligned bounding box, pad by 10 % of the box's width and height
-(so we don't clip fingertips), crop the preprocessed image to that box, then resize the
-crop back to the HOG input size so the descriptor length stays fixed. If the segmentation
-fails (contour empty or bounding box smaller than 32 px) we fall back to the full image.
+compute its axis-aligned bounding box, pad by 10 % of the box's width and height (so we
+don't clip fingertips), crop the preprocessed image to that box, then resize the crop back
+to the HOG input size (96×96) so the descriptor length stays constant at 900-d. If
+segmentation fails (empty contour, or bbox smaller than 32 px) we fall back to the full
+image. `extract_features` in `src/classifer.py` turns it on by default; the flag is
+configurable so both variants can be reproduced.
 
-Rerunning `python -m src.train --data data/all --svm True` with this change and then
-`python -m src.eval --data data/all --svm True --svm-path results/svm_model.pkl` regenerates
-`results/svm_metrics.json`. The expectation (to be verified by the re-run and reported here)
-is that train accuracy stays at ~100% (the SVM has no trouble memorizing either feature
-space) while val accuracy rises by a few points — because the features no longer encode
-subject-specific background. Anything more than a couple of points is a clear win; anything
-less means the HOG gradients inside the hand already dominated the descriptor and the
-background was mostly noise that the PCA step was discarding anyway.
+**What actually happened.** We re-trained and re-evaluated the SVM with the bbox crop on
+(`python -m src.train --data data/all --svm True` then the matching `eval`) and the val
+accuracy *dropped* from 0.7641 to **0.7475** (−1.66 points absolute, macro-F1 0.7488 →
+0.7275). Train accuracy stayed at 1.0000, as expected — the RBF SVM has more than enough
+capacity to memorize either feature space.
+
+This is a negative result, and a useful one. The most likely explanation is the
+resize-back-to-96×96 step: many hands in the dataset occupy maybe half the frame, so the
+padded bounding box is ~60×60 pixels. Stretching that back to 96×96 is a ~1.6× upscale with
+`INTER_AREA`, which *blurs the gradients HOG depends on*. The "noise" we were trying to
+remove from the background was apparently less harmful than the gradient smearing we
+introduced by upsampling. The padding choice of 10 % is likely also too aggressive — on
+small crops, 10 % of the bbox is only 5–6 pixels, so any finger that extends diagonally out
+of the frame gets clipped.
+
+**What we'd do differently for the final milestone.** Three options, in order of
+cheapness:
+
+1. *Don't resize the crop back up.* Instead, letterbox the crop into a fixed 96×96 canvas
+   (center the crop, zero-pad to square). HOG's cell grid stays at the native resolution of
+   the hand, and the descriptor length changes from 900 to... still 900, because HOG is
+   computed over the full padded canvas. No information loss beyond the crop itself.
+2. *Use the crop at a larger input size.* Preprocess to 224×224 first, compute HOG at 16×16
+   cell size directly on the crop in its native resolution (~120 px), then pad the HOG
+   vector to a fixed length with the hand crop's aspect ratio encoded separately.
+3. *Keep the full-image HOG, but add a hand-masked branch.* Run the full-image HOG *and*
+   a second HOG only over the segmented hand pixels (everything outside the mask zeroed
+   out). Concatenate. This gives the SVM both the global context *and* the hand-only signal
+   and lets it decide which is useful.
+
+For submission we're shipping the code with `hand_bbox_crop=True` as the documented
+Part 4 change, and the Results table above reports both variants so the effect of the
+improvement is unambiguous.
 
 ## How to run
 
