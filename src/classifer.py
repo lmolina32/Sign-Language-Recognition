@@ -14,7 +14,18 @@ from sklearn.pipeline import Pipeline
 from .pipeline import Preprocessor, Segmentation, FeatureExtraction
 
 
-def extract_features(pairs, pixels_per_cell=(16, 16), target_size=(224, 244)):
+def extract_features(
+    pairs,
+    pixels_per_cell=(16, 16),
+    target_size=(224, 224),
+    hand_bbox_crop: bool = True,
+):
+    """Build an (N, D) feature matrix from (path, label) pairs.
+
+    `hand_bbox_crop=True` (the Part 4 small-improvement setting) crops to the
+    segmentation bounding box before HOG so background pixels don't leak into the
+    descriptor. Set to False to reproduce the original full-image HOG path.
+    """
     preprocessor = Preprocessor()
     segmentation = Segmentation()
     featureextraction = FeatureExtraction(pixels_per_cell=pixels_per_cell)
@@ -24,11 +35,13 @@ def extract_features(pairs, pixels_per_cell=(16, 16), target_size=(224, 244)):
         img = cv2.imread(path)
         if img is None:
             continue
-        prep = preprocessor.preprocess(img)
-        prep_img = preprocessor.resize(prep["final"], target_size=target_size)
+        prep_img = preprocessor.preprocess_final(img, target_size=target_size)
         seg = segmentation.segment(prep_img)
         feats = featureextraction.extract_all(
-            prep_img, seg["contour"], seg["ycrcb_mask"]
+            prep_img,
+            seg["contour"],
+            seg["ycrcb_mask"],
+            hand_bbox_crop=hand_bbox_crop,
         )
         X.append(feats["features"].astype(np.float32))
         y.append(label)
@@ -123,6 +136,15 @@ class CNN(nn.Module):
         return self.classifier(x)
 
 
+def pick_device():
+    """Prefer CUDA, then Apple MPS, then CPU."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
 def train_cnn(
     train_loader,
     val_loader,
@@ -132,14 +154,18 @@ def train_cnn(
     lr=1e-3,
     device=None,
     verbose=True,
+    use_amp: bool = True,
 ):
     if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = pick_device()
 
     model = CNN(num_classes=num_classes).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     criterion = nn.CrossEntropyLoss()
+
+    amp_enabled = use_amp and device.type == "cuda"
+    scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
 
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
@@ -148,12 +174,14 @@ def train_cnn(
         total_loss, correct, total = 0.0, 0, 0
         print(f"\n[Epoch {epoch+1}/{epochs}] Starting training...")
         for batch_idx, (x, y) in enumerate(train_loader):
-            x, y = x.to(device), y.to(device)
-            optimizer.zero_grad()
-            logits = model(x)
-            loss = criterion(logits, y)
-            loss.backward()
-            optimizer.step()
+            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
+            with torch.cuda.amp.autocast(enabled=amp_enabled):
+                logits = model(x)
+                loss = criterion(logits, y)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             total_loss += loss.item() * x.size(0)
             correct += (logits.argmax(1) == y).sum().item()
             total += x.size(0)

@@ -37,6 +37,13 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--verbose", type=bool, default=True)
     parser.add_argument("--svm", type=bool, default=False)
+    parser.add_argument("--num-workers", type=int, default=2)
+    parser.add_argument(
+        "--amp",
+        type=lambda s: s.lower() in {"1", "true", "yes"},
+        default=True,
+        help="Mixed precision on CUDA (no-op on CPU/MPS).",
+    )
 
     args = parser.parse_args()
 
@@ -57,18 +64,31 @@ def main():
         svm.fit(X_train, y_train)
         svm.save(out / "svm_model.pkl")
     else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"device: {device}")
+        from .classifer import pick_device
+
+        device = pick_device()
+        print(f"device: {device}  amp={args.amp and device.type == 'cuda'}")
 
         train_ds = ASLDataset(
             train_pairs, augment=True, cnn_input_size=args.image_input
         )
         val_ds = ASLDataset(val_pairs, augment=False, cnn_input_size=args.image_input)
+        pin = device.type == "cuda"
         train_loader = DataLoader(
-            train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0
+            train_ds,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.num_workers,
+            pin_memory=pin,
+            persistent_workers=args.num_workers > 0,
         )
         val_loader = DataLoader(
-            val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
+            val_ds,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            pin_memory=pin,
+            persistent_workers=args.num_workers > 0,
         )
 
         print(f"Training CNN for {args.epochs} epochs")
@@ -83,6 +103,7 @@ def main():
             device=device,
             verbose=args.verbose,
             out=out,
+            use_amp=args.amp,
         )
         print(f"  total training time: {time.time()-t0:.1f}s")
 

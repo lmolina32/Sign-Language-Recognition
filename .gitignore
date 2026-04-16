@@ -9,3 +9,10 @@ venv/
 .env
 *.pkl
 *.csv
+
+*.pdf
+*.pt
+*.pth
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

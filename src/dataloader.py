@@ -92,16 +92,11 @@ class ASLDataset(Dataset):
         if img is None:
             img = np.zeros((224, 224, 3), dtype=np.uint8)
 
-        prep = self.preprocessor.preprocess(img)
-        x = prep["final"]
-
-        # resize image for smaller CNNs
-        if self.cnn_input_size != 224:
-            x = cv2.resize(
-                x,
-                (self.cnn_input_size, self.cnn_input_size),
-                interpolation=cv2.INTER_AREA,
-            )
+        # Hot path: only run the ops the CNN actually consumes. `preprocess_final`
+        # resizes straight to the CNN input size so we avoid an extra resize pass.
+        x = self.preprocessor.preprocess_final(
+            img, target_size=(self.cnn_input_size, self.cnn_input_size)
+        )
 
         # augment the data if flag passed in
         if self.augment:

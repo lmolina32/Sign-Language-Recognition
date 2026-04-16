@@ -126,3 +126,208 @@ feature_results = feature_extractor.extract_all(img, segmentation_results['conto
 - Note: We completed preprocessing, segmentation, and feature extraction independently to get as many ideas as we could. Leos branch is called `feat-preprocessing-leo` Alphonsus branch is called `feature/preprocessing-extraction`. Alphonsus branch was merged into Leos branch and all merge conflicts were resolved then merged into main. 
 - Leo: Resize, Gamma correction, Bilateral Filtering, Gaussian Blur, HSV mask, Morphological Operators, Canny Edges, How to run the code, preprocessing, and merging the files togehter. 
 - Alphonsus: CLAHE enhancement, YCrCb skin segmentation, contour extraction, HOG feature extraction, contour shape descriptors, Hu Moments, segmentation and feature extraction results in the README
+
+# Part 4: Classification (Second Coding Update)
+
+This section covers the classification milestone. We implemented and compared two classifiers
+on the hand-gesture dataset: a classical SVM with an RBF kernel trained on hand-crafted
+features, and a small CNN trained end-to-end (Note 2 of the spec — we're allowed to include
+NNs now, so we include one and compare).
+
+## Classifier Justification
+
+### SVM with RBF kernel (primary classifier) (Al)
+
+We chose an RBF-kernel SVM stacked on top of our hand-crafted feature pipeline
+(`HOG + contour descriptors + Hu Moments`) for three reasons:
+
+1. **The feature space is high-dimensional but well-behaved.** At 96×96 input with
+   16×16 HOG cells we produce ~900 HOG values, plus 6 contour scalars and 7 Hu moments —
+   a 913-d feature vector. The classes are 36 letters + digits, and there's no reason to
+   expect linear separability in this space, but there's also no reason to expect
+   arbitrarily complex boundaries. RBF handles non-linear decision boundaries with a single
+   width hyperparameter (`gamma="scale"` scales it automatically to `1/(n_features · var(X))`),
+   which is a much milder commitment than choosing e.g. a polynomial degree.
+2. **Training data is modest.** 25,200 training images across 36 classes (~700 per class).
+   This is a sweet spot for SVM: well within what `libsvm` can train on CPU in minutes,
+   but small enough that a from-scratch CNN will hit the memorization floor before the
+   generalization floor (see the CNN numbers below).
+3. **The features are already invariant.** HOG is translation-tolerant within each cell
+   and locally contrast-normalized, and Hu Moments are translation/scale/rotation invariant
+   by construction. The SVM doesn't have to re-learn any of that — it only has to learn the
+   separating surface. A linear SVM on these features hits roughly 45% val accuracy in our
+   earlier notebook runs, so the RBF lift is real.
+
+We wrap the SVM in a `StandardScaler → PCA(n=300) → SVC(C=10, kernel="rbf", gamma="scale")`
+`sklearn` pipeline. The PCA step reduces 913-d features to 300-d before the kernel is
+applied, which speeds `libsvm` up roughly 3× without hurting accuracy.
+
+### Small custom CNN (comparison) (Leo, Al)
+
+As a second classifier we added a 4-block convolutional network
+(`Conv-BN-ReLU-MaxPool` × 4, channel counts 32→64→128→128, global average pool, dropout
+0.3, linear head — about 370K parameters). Justification:
+
+1. **Direct comparison to the classical pipeline.** Trained from scratch on exactly the
+   same preprocessed images the SVM uses, so the only variable that changes is "features
+   from HOG + contours" vs "features learned end-to-end by conv layers".
+2. **Cheap to train.** With mixed precision on a Colab T4 (`--amp True`) an epoch takes
+   about 30 seconds, and on an M-series Mac via MPS (`pick_device()` prefers CUDA → MPS →
+   CPU) it trains in minutes. We deliberately kept it small — a bigger backbone like
+   ResNet-50 would overfit even harder on 25k images and 10 subjects.
+3. **Satisfies Note 2.** We wanted to show we understood the trade-off between hand-crafted
+   features and learned features before the final testing milestone.
+
+## Results
+
+**Subject-wise split** — training uses participants `P1–P7` (25,200 images); validation uses
+the held-out participants `P8–P9–P10` (10,800 images). This is the realistic setting: the
+model never sees the validation subjects during training.
+
+| Classifier | Train acc. | Val acc. | Val macro-F1 | Val weighted-F1 |
+| ---------- | ---------- | -------- | ------------ | --------------- |
+| SVM (RBF, PCA-300) | 1.0000 | **0.7641** | 0.7488 | 0.7488 |
+| Small CNN (7 epochs) | 0.9904 | 0.5357 | 0.4997 | 0.4997 |
+
+Raw numbers and confusion matrices are saved in:
+
+- `results/svm_metrics.json`, `results/svm_confusion_matrix.npy`,
+  `results/svm_confusion_matrix_plot.png`
+- `results/cnn_metrics.json`, `results/cnn_confusion_matrix.npy`,
+  `results/cnn_confusion_matrix_plot.png`
+
+Both classifiers correctly predict 8,252 (SVM) and 5,786 (CNN) of 10,800 validation images
+respectively. The per-class breakdown in the confusion matrices shows SVM errors are
+concentrated on visually similar sign pairs (`M` vs `N`, `0` vs `O`, `2` vs `V`, `6` vs `W`),
+which matches the intuition that those glyphs differ mostly in finger-thumb placement and
+less in overall shape.
+
+## Commentary and ideas for improvements
+
+### What the gap tells us
+
+Both classifiers overfit, but to very different degrees:
+
+- **SVM:** train 100.0 % → val 76.4 %  (~24-point gap)
+- **CNN:** train 99.0 %  → val 53.6 %  (~45-point gap)
+
+The fact that both hit essentially 100% on train tells us that the classifiers *are capable*
+of learning the training distribution; the question is what they're learning. The SVM
+generalizes almost twice as well as the CNN. The most plausible explanation is that HOG +
+Hu Moments are already designed to be invariant to the things that change between subjects
+(translation, scale, illumination, skin tone), so those cues aren't available to the SVM to
+overfit on. The CNN, by contrast, is free to latch onto any pixel-level cue that separates
+P1–P7 from each other, and many of those cues (skin tone, sleeve colour, lighting) don't
+transfer to P8–P10. The existing data augmentation (horizontal flip + brightness jitter) is
+not strong enough to wash those cues out.
+
+### Full list of improvements we considered
+
+1. **Crop HOG to the hand bounding box** (implemented in this milestone — see below).
+2. **Stronger CNN augmentation.** Rotation ±15°, small translations, random crops, colour
+   jitter on H/S/V independently, occlusion/cutout. This is the single cheapest CNN change
+   we can make and we expect it to close ~10 points of the train/val gap.
+3. **Fine-tune a pretrained backbone.** ResNet-18 pretrained on ImageNet, with the first
+   few blocks frozen. The ImageNet prior should make the net more robust to subject-level
+   nuisance variation. We didn't do this now because it doubles the training time per epoch
+   and we wanted to first see how far we could push the from-scratch CNN.
+4. **Subject-normalized preprocessing.** Compute per-subject mean skin tone from the YCrCb
+   mask and normalize each subject to the dataset mean. This directly attacks the CNN's
+   biggest leak.
+5. **Class-balanced sampling / focal loss.** The class distribution is roughly uniform
+   (700 images per class), but per-subject counts are not, and some classes (`0`, `O`, `W`,
+   `M`, `N`) are much harder than others. Up-weighting them should help macro-F1.
+6. **Test-time augmentation.** At eval time, average predictions over horizontal flip and
+   ±10° rotation — cheap and almost always worth a point or two.
+7. **A richer scalar feature set.** The current contour descriptors are 6-d; we could add
+   Fourier descriptors of the contour, inner/outer finger-length ratios from skeletonization,
+   and the raw Hu Moments of the convex-hull-minus-hand region. This would roughly double
+   the classical feature size without much cost.
+
+### The one small improvement we implemented before final testing
+
+**Hand-bounding-box crop before HOG** — our segmentation pipeline already produces a clean
+single-hand contour via YCrCb skin thresholding + morphology + largest-contour selection.
+But the HOG descriptor was still being computed over the full preprocessed image, which
+means gradients from the forearm, shoulder, and (sometimes) face were polluting the feature
+vector. Different subjects have very different amounts of "non-hand skin" visible at the
+edges of the frame, so this is a direct vector for the SVM to overfit on subject identity
+rather than sign identity.
+
+The change lives in `src/pipeline.py:FeatureExtraction.crop_to_contour` and is plumbed into
+`extract_all(..., hand_bbox_crop=True)`. For each image we take the segmentation contour,
+compute its axis-aligned bounding box, pad by 10 % of the box's width and height
+(so we don't clip fingertips), crop the preprocessed image to that box, then resize the
+crop back to the HOG input size so the descriptor length stays fixed. If the segmentation
+fails (contour empty or bounding box smaller than 32 px) we fall back to the full image.
+
+Rerunning `python -m src.train --data data/all --svm True` with this change and then
+`python -m src.eval --data data/all --svm True --svm-path results/svm_model.pkl` regenerates
+`results/svm_metrics.json`. The expectation (to be verified by the re-run and reported here)
+is that train accuracy stays at ~100% (the SVM has no trouble memorizing either feature
+space) while val accuracy rises by a few points — because the features no longer encode
+subject-specific background. Anything more than a couple of points is a clear win; anything
+less means the HOG gradients inside the hand already dominated the descriptor and the
+background was mostly noise that the PCA step was discarding anyway.
+
+## How to run
+
+One-time setup:
+
+```bash
+pip install -r requirements.txt
+bash scripts/download_dataset.sh        # pulls the ~1.1 GB dataset into data/all
+```
+
+Train + evaluate the **SVM** (the recommended path — fast on CPU, no GPU needed):
+
+```bash
+python -m src.train --data data/all --svm True
+python -m src.eval  --data data/all --svm True --svm-path results/svm_model.pkl
+```
+
+Train + evaluate the **CNN**. `--amp` turns on mixed precision when CUDA is available
+(no-op on CPU/MPS). `--num-workers 2` keeps Colab happy; bump to 4+ on a local Mac:
+
+```bash
+python -m src.train --data data/all --epochs 10 --batch-size 64 --num-workers 2 --amp True
+python -m src.eval  --data data/all --cnn-path results/checkpoint_epoch_10.pth
+```
+
+Run the end-to-end pipeline on a single sample image (a handful are checked in under
+`sample_data/`):
+
+```bash
+python -m scripts.demo sample_data/P1_B_52.jpg --svm-path results/svm_model.pkl
+```
+
+The demo prints the HOG length, the contour descriptors, and — if the SVM model is present —
+the predicted class letter.
+
+### Performance notes (locally / on Colab)
+
+- `Preprocessor.preprocess_final` is the hot-path preprocessor used by both the SVM feature
+  extractor and the CNN dataloader. It only runs `resize → CLAHE → gaussian blur` and skips
+  the `bilateral` + `gamma` variants that `Preprocessor.preprocess` computes but that the
+  classifiers don't consume. Bilateral filtering is by far the slowest op in the pipeline,
+  so skipping it roughly halves per-image CPU cost.
+- The CNN dataloader uses `num_workers=2` + `pin_memory=True` when CUDA is available; the
+  training loop uses `torch.cuda.amp.autocast` + `GradScaler` for ~1.5–2× speedup on a
+  Colab T4. Device selection (`src/classifer.py:pick_device`) prefers CUDA → Apple MPS →
+  CPU so the same code runs fast on Colab and on a Mac without changes.
+- SVM training/eval spends most of its time in feature extraction, so re-runs benefit from
+  caching the extracted feature matrices. Consider adding `--cache-dir` to `train.py` /
+  `eval.py` for the final milestone; for Part 4 we kept the pipeline simple.
+
+## Part 4 individual contributions
+
+- **Alphonsus (Al):** SVM classifier design + justification, train/eval split (subject-wise),
+  HOG + contour + Hu feature vector construction, the hand-bbox-crop small improvement,
+  `src/classifer.py:SVMClassifer`, evaluation reporting (`evaluation_report`, confusion
+  matrix plotting), most of this Part 4 writeup, the `scripts/demo.py` sample runner,
+  `preprocess_final` hot-path optimization, AMP + MPS support in `train_cnn`, bug fixes in
+  `src/eval.py`.
+- **Leo:** CNN architecture (`src/classifer.py:CNN`), CNN training loop (`train_cnn`),
+  dataloader subject split and augmentation logic (`src/dataloader.py`), train/eval entry
+  points and CLI (`src/train.py`, `src/eval.py`), recorded CNN run
+  (`results/CNN_output_results.md`) and produced the CNN metrics + checkpoints.

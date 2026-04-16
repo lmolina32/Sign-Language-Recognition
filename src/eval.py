@@ -136,7 +136,7 @@ def evalute_cnn_saved_model(
 
     with open(out / "cnn_metrics.json", "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nAll metrics saved to {out / 'metrics.json'}")
+    print(f"\nAll metrics saved to {out / 'cnn_metrics.json'}")
 
     cm = confusion_matrix(y_val_true, y_val_pred, labels=list(range(len(CLASSES))))
     np.save(out / "cnn_confusion_matrix.npy", cm)
@@ -151,7 +151,7 @@ def evalute_cnn_saved_model(
         yticklabels=CLASSES,
     )
 
-    plt.title("SVM Confusion Matrix")
+    plt.title("CNN Confusion Matrix")
     plt.ylabel("Actual Label")
     plt.xlabel("Predicted Label")
     plt.savefig(out / "cnn_confusion_matrix_plot.png", dpi=300, bbox_inches="tight")

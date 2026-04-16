@@ -45,7 +45,7 @@ class Preprocessor:
         return cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
 
     def preprocess(self, img: np.ndarray) -> np.ndarray:
-        """Full preprocessing chain: resize -> CLAHE -> Gaussian blur."""
+        """Full preprocessing chain: returns every intermediate for debugging/notebooks."""
         gamma_correction = self.gamma_correction(img)
         bilateral_filter = self.bilateral_filter(img)
         return {
@@ -56,6 +56,17 @@ class Preprocessor:
             "bilateral_filter": bilateral_filter,
             "final": self.gaussian_blur(self.clahe_enhancement(self.resize(img))),
         }
+
+    def preprocess_final(
+        self, img: np.ndarray, target_size: tuple = (224, 224)
+    ) -> np.ndarray:
+        """Hot-path preprocessing used in training/eval: resize -> CLAHE -> Gaussian blur.
+
+        Skips the gamma/bilateral variants that `preprocess` computes but that the
+        downstream models don't consume. Shaves roughly half the per-image CPU cost in
+        the SVM feature-extraction loop and the CNN dataloader.
+        """
+        return self.gaussian_blur(self.clahe_enhancement(self.resize(img, target_size)))
 
     @staticmethod
     def to_rgb(img: np.ndarray) -> np.ndarray:
@@ -168,11 +179,50 @@ class FeatureExtraction:
         hog_vis = skexposure.rescale_intensity(hog_img, in_range=(0, 10))
         return feats, hog_vis
 
+    def crop_to_contour(
+        self,
+        img: np.ndarray,
+        contour: np.ndarray,
+        pad: float = 0.1,
+        min_size: int = 32,
+    ) -> np.ndarray:
+        """Crop `img` to the contour's bounding box with fractional padding.
+
+        Returns the crop resized back to `img`'s original (H, W) so HOG produces a
+        fixed-length descriptor. Falls back to the full image if the contour is
+        missing / too small to be useful (e.g. segmentation failure).
+        """
+        if contour is None or len(contour) < 3:
+            return img
+        h, w = img.shape[:2]
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if bw < min_size or bh < min_size:
+            return img
+        px = int(bw * pad)
+        py = int(bh * pad)
+        x0 = max(0, x - px)
+        y0 = max(0, y - py)
+        x1 = min(w, x + bw + px)
+        y1 = min(h, y + bh + py)
+        crop = img[y0:y1, x0:x1]
+        if crop.size == 0:
+            return img
+        return cv2.resize(crop, (w, h), interpolation=cv2.INTER_AREA)
+
     def extract_contour_features(self, contour: np.ndarray, mask: np.ndarray) -> dict:
         """Shape descriptors from the segmented hand contour.
 
         Returns a dict with: area, perimeter, solidity, aspect_ratio, extent, num_defects
         """
+        if contour is None or len(contour) < 3:
+            return {
+                "area": 0.0,
+                "perimeter": 0.0,
+                "solidity": 0.0,
+                "aspect_ratio": 0.0,
+                "extent": 0.0,
+                "num_defects": 0,
+            }
         area = cv2.contourArea(contour)
         perimeter = cv2.arcLength(contour, True)
         hull = cv2.convexHull(contour)
@@ -200,20 +250,36 @@ class FeatureExtraction:
 
     def extract_hu_moments(self, contour_or_mask: np.ndarray) -> np.ndarray:
         """7 log-transformed Hu Moments (invariant to translation, scale, rotation)."""
+        if contour_or_mask is None or (
+            hasattr(contour_or_mask, "__len__") and len(contour_or_mask) < 3
+        ):
+            return np.zeros(7, dtype=np.float64)
         M = cv2.moments(contour_or_mask)
         hu = cv2.HuMoments(M).flatten()
         return -np.sign(hu) * np.log10(np.abs(hu) + 1e-10)
 
     def extract_all(
-        self, img: np.ndarray, contour: np.ndarray, mask: np.ndarray
+        self,
+        img: np.ndarray,
+        contour: np.ndarray,
+        mask: np.ndarray,
+        hand_bbox_crop: bool = False,
     ) -> np.ndarray:
         """Concatenate all features into a single flat vector.
 
         At default HOG settings on 224x224:
             HOG (26244) + contour descriptors (6) + Hu moments (7) = 26257
+
+        When `hand_bbox_crop=True` the image is cropped to the segmentation contour's
+        bounding box (padded 10%) before HOG is computed — HOG descriptor length is
+        unchanged because the crop is resized back to the input size. This keeps
+        background gradients (face, forearm) out of the feature vector.
         """
         canny_edges = self.extract_canny_edges(img)
-        hog_feats, hog_img = self.extract_hog(img)
+        hog_input = (
+            self.crop_to_contour(img, contour) if hand_bbox_crop else img
+        )
+        hog_feats, hog_img = self.extract_hog(hog_input)
         contour_dict = self.extract_contour_features(contour, mask)
         contour_arr = np.array(list(contour_dict.values()), dtype=np.float64)
         hu = self.extract_hu_moments(contour)
