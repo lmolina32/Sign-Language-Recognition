@@ -10,7 +10,6 @@ venv/
 *.pkl
 *.csv
 
-*.pdf
 *.pt
 *.pth
 .pytest_cache/
