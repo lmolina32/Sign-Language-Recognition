@@ -22,12 +22,57 @@ def load_image_label_pairs(root_dir: str) -> Pairs:
         root_dir (str): directory of data
 
     Expected layout:
+    layout1
         roo_dir/
             P1_A_001.jpg
             ...
+
+    layout2 (layout scripts/download_dataset.sh downloads data)
+        root_dir/
+            test/
+                a/
+                    p1_A_001.jpg
+                    ...
+                ...
+            train/
+                a/
+                    p2_A_001.jpg
+                    ...
+                ...
     """
     pairs = []
     valid_extensions = {".jpg", ".jpeg", ".png"}
+    subdirs = [d for d in Path(root_dir).iterdir() if d.is_dir()]
+    folder_classes = [
+        d for d in subdirs if d.parts[-1] == "test" or d.parts[-1] == "train"
+    ]
+    if folder_classes:
+        # walk [train, test]
+        for fp in folder_classes:
+            if fp.is_dir():
+                # walk all folders [A, B, .... 0, 1, ... 9]
+                for sub_fp in Path(str(fp)).iterdir():
+                    if fp.is_dir():
+                        # walk every file and add (path, label)
+                        for sub_sub_fp in Path(str(sub_fp)).iterdir():
+                            if not sub_sub_fp.is_file():
+                                continue
+                            if sub_sub_fp.suffix.lower() not in valid_extensions:
+                                raise ValueError(
+                                    "Expected files with valid extensions (.jpg, .jpeg, .png)"
+                                )
+                            try:
+                                img_class = sub_sub_fp.stem.split("_")[1].upper()
+                            except (KeyError, IndexError, AttributeError):
+                                raise ValueError(
+                                    "Expected files of the format p{paritcipant number}_{img_class}_{img_number}"
+                                )
+                            if img_class not in CLASSES_TO_IDX:
+                                raise ValueError(
+                                    "Expected class must be from 0-9 or A-Z"
+                                )
+                            pairs.append((str(sub_sub_fp), CLASSES_TO_IDX[img_class]))
+        return pairs
     for fp in Path(root_dir).iterdir():
         if not fp.is_file():
             continue
