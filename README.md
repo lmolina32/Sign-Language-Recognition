@@ -20,7 +20,7 @@ sign-language-recognition/
 └── tests/                   # Testing src code 
 ```
 
-# NOTE: Project 3 update was moved to `docs/project03_update.md`
+# **NOTE: Project 3 update was moved to `docs/project03_update.md`**
 
 # Part 4: Classification (Second Coding Update)
 
