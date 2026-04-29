@@ -60,7 +60,7 @@ We also compute the seven Hu Moments from the contour, log-transformed for numer
 ## Preprocessing (Leo)
 Below are all the preprocessing operations done separately from each other: Resizing, Gaussian Blur, Clahe Enhancement, Gamma correction and Bilateral Filtering 
 
-![Preprocessing Results](sample_data/project03_figures/preprocessing_results.png)
+![Preprocessing Results](results/project03_figures/preprocessing_results.png)
 
 On the left bottom corner we have the final pipeline which consists of resize -> gaussian blur -> Clahe Ehancement. But, since our code is built in a class structure it is really easy to interchange the order of preprocessing. 
 
@@ -68,27 +68,27 @@ On the left bottom corner we have the final pipeline which consists of resize ->
 
 We compared four segmentation approaches on a set of sample images: YCrCb thresholding, HSV thresholding, Otsu thresholding on grayscale, and GrabCut. The comparison is shown below.
 
-![Segmentation method comparison](sample_data/project03_figures/seg_comparison.png)
+![Segmentation method comparison](results/project03_figures/seg_comparison.png)
 
 YCrCb came out the most consistent across the dataset. HSV thresholding was hit or miss depending on the background color — it struggled whenever the background had warm tones similar to skin. Otsu failed on images where the hand and background had similar overall brightness, which happened fairly often. GrabCut was the slowest and tended to miss finger tips at the edges of the bounding rect.
 
 The YCrCb results across all 15 sample images:
 
-![YCrCb segmentation on all samples](sample_data/project03_figures/seg_results.png)
+![YCrCb segmentation on all samples](results/project03_figures/seg_results.png)
 
 ## Feature Extraction (Al)
 
 **HOG:** The visualization below shows HOG gradient maps for three different signs. You can see distinct patterns corresponding to finger orientations — the edge directions in the HOG image are clearly different between an open hand (Y) and a closed fist (B), which is exactly what we want the classifier to pick up on.
 
-![HOG feature visualization](sample_data/project03_figures/hog_comparison.png)
+![HOG feature visualization](results/project03_figures/hog_comparison.png)
 
 **Contour features:** The plot below shows the contour, convex hull, bounding rect, and convexity defect points overlaid on the segmented hand. The scalar values (solidity, aspect ratio, defect count) printed in the titles give a sense of how these features differ between signs.
 
-![Contour feature visualization](sample_data/project03_figures/contour_features.png)
+![Contour feature visualization](results/project03_figures/contour_features.png)
 
 **Hu Moments:** The bar chart compares log-transformed Hu Moment values across several sign classes. The pattern of values differs meaningfully between signs, especially in the first two or three moments which capture the most variance in overall shape.
 
-![Hu Moments comparison](sample_data/project03_figures/hu_moments.png)
+![Hu Moments comparison](results/project03_figures/hu_moments.png)
 # How to run the code (Leo)
 * More examples on how to run the code in `test/pipeline_test.ipynb`.
 
