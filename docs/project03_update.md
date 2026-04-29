@@ -14,7 +14,7 @@ Bilaterla Filtering removes noise from an image while keeping edges sharp. In th
 
 ### Clahe enhancement (Al)
 
-CLAHE (Contrast Limited Adaptive Histogram Equalization) is applied to the L channel of the LAB color space using a clip limit of 2.0 and an 8×8 tile grid. The idea is that regular histogram equalization works globally — it looks at the whole image and stretches contrast across the board — but that tends to wash things out or over-amplify noise in already well-lit areas. CLAHE fixes this by dividing the image into small tiles and equalizing each one independently, then blending the results so there are no hard seams. Working in LAB means we only touch the luminance (L) and leave the color channels (A, B) alone, so skin tone doesn't get distorted in the process. This matters a lot for our dataset since it's 10 different people, shot in different environments — some images are darker, some have harsher lighting — and we need the hand to look consistent before we try to segment it.
+CLAHE (Contrast Limited Adaptive Histogram Equalization) is applied to the L channel of the LAB color space using a clip limit of 2.0 and an 8×8 tile grid. The idea is that regular histogram equalization works globally — it looks at the whole image and stretches contrast across the board — but that tends to wash things out or over-amplify noise in already well-lit areas. CLAHE fixes this by dividing the image into small tiles and equalizing each one independently, then blending the /results so there are no hard seams. Working in LAB means we only touch the luminance (L) and leave the color channels (A, B) alone, so skin tone doesn't get distorted in the process. This matters a lot for our dataset since it's 10 different people, shot in different environments — some images are darker, some have harsher lighting — and we need the hand to look consistent before we try to segment it.
 
 ### Gaussian Blur (Leo)
 
@@ -60,7 +60,7 @@ We also compute the seven Hu Moments from the contour, log-transformed for numer
 ## Preprocessing (Leo)
 Below are all the preprocessing operations done separately from each other: Resizing, Gaussian Blur, Clahe Enhancement, Gamma correction and Bilateral Filtering 
 
-![Preprocessing Results](results/project03_figures/preprocessing_results.png)
+![Preprocessing data](/results/project03_figures/preprocessing_results.png)
 
 On the left bottom corner we have the final pipeline which consists of resize -> gaussian blur -> Clahe Ehancement. But, since our code is built in a class structure it is really easy to interchange the order of preprocessing. 
 
@@ -68,27 +68,27 @@ On the left bottom corner we have the final pipeline which consists of resize ->
 
 We compared four segmentation approaches on a set of sample images: YCrCb thresholding, HSV thresholding, Otsu thresholding on grayscale, and GrabCut. The comparison is shown below.
 
-![Segmentation method comparison](results/project03_figures/seg_comparison.png)
+![Segmentation method comparison](/results/project03_figures/seg_comparison.png)
 
 YCrCb came out the most consistent across the dataset. HSV thresholding was hit or miss depending on the background color — it struggled whenever the background had warm tones similar to skin. Otsu failed on images where the hand and background had similar overall brightness, which happened fairly often. GrabCut was the slowest and tended to miss finger tips at the edges of the bounding rect.
 
-The YCrCb results across all 15 sample images:
+The YCrCb /results across all 15 sample images:
 
-![YCrCb segmentation on all samples](results/project03_figures/seg_results.png)
+![YCrCb segmentation on all samples](/results/project03_figures/seg_results.png)
 
 ## Feature Extraction (Al)
 
 **HOG:** The visualization below shows HOG gradient maps for three different signs. You can see distinct patterns corresponding to finger orientations — the edge directions in the HOG image are clearly different between an open hand (Y) and a closed fist (B), which is exactly what we want the classifier to pick up on.
 
-![HOG feature visualization](results/project03_figures/hog_comparison.png)
+![HOG feature visualization](/results/project03_figures/hog_comparison.png)
 
 **Contour features:** The plot below shows the contour, convex hull, bounding rect, and convexity defect points overlaid on the segmented hand. The scalar values (solidity, aspect ratio, defect count) printed in the titles give a sense of how these features differ between signs.
 
-![Contour feature visualization](results/project03_figures/contour_features.png)
+![Contour feature visualization](/results/project03_figures/contour_features.png)
 
 **Hu Moments:** The bar chart compares log-transformed Hu Moment values across several sign classes. The pattern of values differs meaningfully between signs, especially in the first two or three moments which capture the most variance in overall shape.
 
-![Hu Moments comparison](results/project03_figures/hu_moments.png)
+![Hu Moments comparison](/results/project03_figures/hu_moments.png)
 # How to run the code (Leo)
 * More examples on how to run the code in `test/pipeline_test.ipynb`.
 
@@ -102,12 +102,12 @@ segmentation = Segmentation()
 feature_extractor = FeatureExtraction()
 
 # All classes return dictionary with images
-preprocessor_results = preprocessor.preprocess(img)
-segmentation_results = segmentation.segment(img)
-feature_results = feature_extractor.extract_all(img, segmentation_results['contour'], segmentation_results['ycrcb_mask'])
+preprocessor_/results = preprocessor.preprocess(img)
+segmentation_/results = segmentation.segment(img)
+feature_/results = feature_extractor.extract_all(img, segmentation_/results['contour'], segmentation_/results['ycrcb_mask'])
 ```
 
 # Individual Contributions 
 - Note: We completed preprocessing, segmentation, and feature extraction independently to get as many ideas as we could. Leos branch is called `feat-preprocessing-leo` Alphonsus branch is called `feature/preprocessing-extraction`. Alphonsus branch was merged into Leos branch and all merge conflicts were resolved then merged into main. 
 - Leo: Resize, Gamma correction, Bilateral Filtering, Gaussian Blur, HSV mask, Morphological Operators, Canny Edges, How to run the code, preprocessing, and merging the files togehter. 
-- Alphonsus: CLAHE enhancement, YCrCb skin segmentation, contour extraction, HOG feature extraction, contour shape descriptors, Hu Moments, segmentation and feature extraction results in the README
+- Alphonsus: CLAHE enhancement, YCrCb skin segmentation, contour extraction, HOG feature extraction, contour shape descriptors, Hu Moments, segmentation and feature extraction /results in the README
