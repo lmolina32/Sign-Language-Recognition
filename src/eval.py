@@ -81,7 +81,7 @@ def evaluate_svm(args, train_pairs, val_pairs, out):
     print(f"\nAll metrics saved to {out / 'svm_metrics.json'}")
 
 
-def evalute_cnn_saved_model(
+def evalute_cnn_saved_model_train_val(
     args,
     train_pairs,
     val_pairs,
@@ -134,12 +134,12 @@ def evalute_cnn_saved_model(
         "val": val_metrics,
     }
 
-    with open(out / "cnn_metrics.json", "w") as f:
+    with open(out / "train_val_cnn_metrics.json", "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nAll metrics saved to {out / 'cnn_metrics.json'}")
+    print(f"\nAll metrics saved to {out / 'train_val_cnn_metrics.json'}")
 
     cm = confusion_matrix(y_val_true, y_val_pred, labels=list(range(len(CLASSES))))
-    np.save(out / "cnn_confusion_matrix.npy", cm)
+    np.save(out / "val_cnn_confusion_matrix.npy", cm)
     # Create the plot
     plt.figure(figsize=(10, 8))
     sns.heatmap(
@@ -157,7 +157,63 @@ def evalute_cnn_saved_model(
     plt.savefig(out / "cnn_confusion_matrix_plot.png", dpi=300, bbox_inches="tight")
 
 
-def main():
+def evaluate_cnn_saved_model_on_test(args, pairs, results, out):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"device: {device}")
+
+    print(f"loading model from {args.cnn_path}")
+    model = CNN(num_classes=len(CLASSES)).to(device)
+    checkpoint = torch.load(args.cnn_path, map_location=device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.to(device)
+    model.eval()
+
+    print("loading test dataset")
+    test_ds = ASLDataset(pairs, augment=False, cnn_input_size=args.image_input)
+    test_loader = DataLoader(
+        test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
+    )
+
+    print("Running test evalution of cnn")
+    y_test_pred, y_test_true, _ = evaluate_cnn(model, test_loader, device)
+
+    print("creating reports")
+    test_metrics = evaluation_report(y_test_true, y_test_pred)
+
+    print(
+        f"CNN test   accuracy: {test_metrics['accuracy']:.4f}  "
+        f"({test_metrics['n_correct']}/{test_metrics['n_total']})"
+    )
+    print(f"CNN val   macro F1: {test_metrics['macro_f1']:.4f}")
+
+    results["cnn"] = {"test": test_metrics}
+
+    with open(out / "test_cnn_metrics.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\nAll metrics saved to {out / 'test_cnn_metrics.json'}")
+
+    cm = confusion_matrix(y_test_true, y_test_pred, labels=list(range(len(CLASSES))))
+    np.save(out / "test_cnn_confusion_matrix.npy", cm)
+    # Create the plot
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=CLASSES,
+        yticklabels=CLASSES,
+    )
+
+    plt.title("CNN Confusion Matrix")
+    plt.ylabel("Actual Label")
+    plt.xlabel("Predicted Label")
+    plt.savefig(
+        out / "test_cnn_confusion_matrix_plot.png", dpi=300, bbox_inches="tight"
+    )
+
+
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="Path to dataset")
     parser.add_argument("--output", default="results")
@@ -179,6 +235,9 @@ def main():
         type=str,
         help="CNN model path (required if svm is set to false (default ))",
     )
+    parser.add_argument(
+        "--cnn-test", type=bool, default=False, help="running test data on cnn"
+    )
 
     args = parser.parse_args()
 
@@ -188,13 +247,20 @@ def main():
     if not args.svm and not args.cnn_path:
         parser.error("--cnn-path required if --svm was not set to True")
 
+    return args
+
+
+def main():
+    args = parse_arguments()
+
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
 
     pairs = load_image_label_pairs(args.data)
-    train_pairs, val_pairs = split_by_subject(
-        pairs, list(args.train_subjects), list(args.val_subjects)
-    )
+    if not args.cnn_test:
+        train_pairs, val_pairs = split_by_subject(
+            pairs, list(args.train_subjects), list(args.val_subjects)
+        )
 
     results = {
         "config": {
@@ -202,10 +268,6 @@ def main():
             "image_dim": args.image_input,
             "batch_size": args.batch_size,
             "lr": args.lr,
-            "train_subjects": args.train_subjects,
-            "val_subjects": args.val_subjects,
-            "n_train": len(train_pairs),
-            "n_val": len(val_pairs),
             "n_classes": len(CLASSES),
             "epochs": args.epochs,
         }
@@ -213,8 +275,15 @@ def main():
 
     if args.svm:
         evaluate_svm(args, train_pairs, val_pairs, out)
-    else:
-        evalute_cnn_saved_model(args, train_pairs, val_pairs, results, out)
+    elif not args.svm and not args.cnn_test:
+        results["train_subjects"] = args.train_subjects
+        results["val_subjects"] = args.val_subjects
+        results["n_train"] = len(train_pairs)
+        results["n_val"] = len(val_pairs)
+        evalute_cnn_saved_model_train_val(args, train_pairs, val_pairs, results, out)
+    elif not args.svm and args.cnn_test:
+        results["subjects"] = 2
+        evaluate_cnn_saved_model_on_test(args, pairs, results, out)
 
 
 if __name__ == "__main__":
