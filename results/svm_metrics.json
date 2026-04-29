@@ -15,14 +15,14 @@
       "n_total": 25200
     },
     "val": {
-      "accuracy": 0.7475,
-      "macro_precision": 0.7718251635901864,
-      "macro_recall": 0.7474999999999999,
-      "macro_f1": 0.7275231886754008,
-      "weighted_precision": 0.7718251635901863,
-      "weighted_recall": 0.7475,
-      "weighted_f1": 0.7275231886754008,
-      "n_correct": 8073,
+      "accuracy": 0.737037037037037,
+      "macro_precision": 0.7837635175914011,
+      "macro_recall": 0.737037037037037,
+      "macro_f1": 0.7308469243642917,
+      "weighted_precision": 0.7837635175914011,
+      "weighted_recall": 0.737037037037037,
+      "weighted_f1": 0.7308469243642917,
+      "n_correct": 7960,
       "n_total": 10800
     }
   }
