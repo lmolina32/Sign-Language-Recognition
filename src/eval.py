@@ -29,7 +29,7 @@ from .classifer import (
 )
 
 
-def evaluate_svm(
+def evaluate_svm_train_val(
     args: argparse.Namespace, train_pairs: Pairs, val_pairs: Pairs, out: Path
 ) -> None:
     results = {"kernel": "rbf", "pca": "true", "C": 10.0}
@@ -62,7 +62,7 @@ def evaluate_svm(
     print(f"SVM val   macro F1: {val_metrics['macro_f1']:.4f}")
     results["svm"] = {"train": train_metrics, "val": val_metrics}
     cm = confusion_matrix(y_val, y_val_pred, labels=list(range(len(CLASSES))))
-    np.save(out / "svm_confusion_matrix.npy", cm)
+    np.save(out / "train_svm_confusion_matrix.npy", cm)
 
     # Create the plot
     plt.figure(figsize=(10, 8))
@@ -78,15 +78,68 @@ def evaluate_svm(
     plt.title("SVM Confusion Matrix")
     plt.ylabel("Actual Label")
     plt.xlabel("Predicted Label")
-    plt.savefig(out / "svm_confusion_matrix_plot.png", dpi=300, bbox_inches="tight")
+    plt.savefig(
+        out / "train_svm_confusion_matrix_plot.png", dpi=300, bbox_inches="tight"
+    )
 
     del X_train, X_val, y_train, y_val, svm
     gc.collect()
 
     # save metrics
-    with open(out / "svm_metrics.json", "w") as f:
+    with open(out / "train_svm_metrics.json", "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nAll metrics saved to {out / 'svm_metrics.json'}")
+    print(f"\nAll metrics saved to {out / 'train_svm_metrics.json'}")
+
+
+def evaluate_svm_test(args, pairs, out):
+    results = {"kernel": "rbf", "pca": "true", "C": 10.0}
+    print("loading the test sets...")
+    X_test, y_test = extract_features(
+        pairs, target_size=(args.image_input, args.image_input)
+    )
+
+    print("loading svm...")
+    svm = SVMClassifer(C=10.0, use_pca=True, n_components=300)
+    svm.load(args.svm_path)
+
+    # evaluate SVM
+    y_test_pred = svm.predict(X_test)
+    test_metrics = evaluation_report(y_test, y_test_pred)
+
+    print(
+        f"SVM test   accuracy: {test_metrics['accuracy']:.4f}  "
+        f"({test_metrics['n_correct']}/{test_metrics['n_total']})"
+    )
+    print(f"SVM test   macro F1: {test_metrics['macro_f1']:.4f}")
+    results["svm"] = {"test": test_metrics}
+    cm = confusion_matrix(y_test, y_test_pred, labels=list(range(len(CLASSES))))
+    np.save(out / "test_svm_confusion_matrix.npy", cm)
+
+    # Create the plot
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=CLASSES,
+        yticklabels=CLASSES,
+    )
+
+    plt.title("SVM Confusion Matrix")
+    plt.ylabel("Actual Label")
+    plt.xlabel("Predicted Label")
+    plt.savefig(
+        out / "test_svm_confusion_matrix_plot.png", dpi=300, bbox_inches="tight"
+    )
+
+    del X_test, y_test, svm
+    gc.collect()
+
+    # save metrics
+    with open(out / "test_svm_metrics.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\nAll metrics saved to {out / 'test_svm_metrics.json'}")
 
 
 def evalute_cnn_saved_model_train_val(
@@ -248,6 +301,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--cnn-test", type=bool, default=False, help="running test data on cnn"
     )
+    parser.add_argument(
+        "--svm-test", type=bool, default=False, help="running test data on svm"
+    )
 
     args = parser.parse_args()
 
@@ -267,7 +323,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     pairs = load_image_label_pairs(args.data)
-    if not args.cnn_test:
+    if not args.cnn_test and not args.svm_test:
         train_pairs, val_pairs = split_by_subject(
             pairs, list(args.train_subjects), list(args.val_subjects)
         )
@@ -283,8 +339,10 @@ def main():
         }
     }
 
-    if args.svm:
-        evaluate_svm(args, train_pairs, val_pairs, out)
+    if args.svm and not args.svm_test:
+        evaluate_svm_train_val(args, train_pairs, val_pairs, out)
+    elif args.svm and args.svm_test:
+        evaluate_svm_test(args, pairs, out)
     elif not args.svm and not args.cnn_test:
         results["train_subjects"] = args.train_subjects
         results["val_subjects"] = args.val_subjects
