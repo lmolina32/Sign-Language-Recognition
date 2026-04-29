@@ -13,7 +13,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-from .dataloader import CLASSES, load_image_label_pairs, split_by_subject, ASLDataset
+from .dataloader import (
+    CLASSES,
+    load_image_label_pairs,
+    split_by_subject,
+    ASLDataset,
+    Pairs,
+)
 from .classifer import (
     evaluate_cnn,
     evaluation_report,
@@ -23,7 +29,9 @@ from .classifer import (
 )
 
 
-def evaluate_svm(args, train_pairs, val_pairs, out):
+def evaluate_svm(
+    args: argparse.Namespace, train_pairs: Pairs, val_pairs: Pairs, out: Path
+) -> None:
     results = {"kernel": "rbf", "pca": "true", "C": 10.0}
     print("loading the val and trainings sets...")
     X_train, y_train = extract_features(
@@ -82,12 +90,12 @@ def evaluate_svm(args, train_pairs, val_pairs, out):
 
 
 def evalute_cnn_saved_model_train_val(
-    args,
-    train_pairs,
-    val_pairs,
-    results,
-    out,
-):
+    args: argparse.Namespace,
+    train_pairs: Pairs,
+    val_pairs: Pairs,
+    results: dict,
+    out: Path,
+) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
 
@@ -157,7 +165,9 @@ def evalute_cnn_saved_model_train_val(
     plt.savefig(out / "cnn_confusion_matrix_plot.png", dpi=300, bbox_inches="tight")
 
 
-def evaluate_cnn_saved_model_on_test(args, pairs, results, out):
+def evaluate_cnn_saved_model_on_test(
+    args: argparse.Namespace, pairs: Pairs, results: dict, out: Path
+) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
 

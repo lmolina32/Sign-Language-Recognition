@@ -279,7 +279,7 @@ def evaluate_cnn(model, loader, device=None):
     return preds, labels, accuracy_score(labels, preds)
 
 
-def evaluation_report(y_true, y_pred):
+def evaluation_report(y_true, y_pred) -> dict:
     """Compute accuracy + macro/weighted P/R/F."""
     acc = accuracy_score(y_true, y_pred)
     macro = precision_recall_fscore_support(

@@ -23,7 +23,7 @@ from .classifer import (
 )
 
 
-def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="Path to dataset")
     parser.add_argument("--output", default="results")
@@ -45,8 +45,11 @@ def main():
         help="Mixed precision on CUDA (no-op on CPU/MPS).",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def main():
+    args = parse_args()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -55,6 +58,7 @@ def main():
         pairs, list(args.train_subjects), list(args.val_subjects)
     )
 
+    # Train svm
     if args.svm:
         X_train, y_train = extract_features(
             train_pairs, target_size=(args.image_input, args.image_input)
@@ -63,6 +67,7 @@ def main():
         svm = SVMClassifer(C=10.0, use_pca=True, n_components=300)
         svm.fit(X_train, y_train)
         svm.save(out / "svm_model.pkl")
+    # Train CNN
     else:
         from .classifer import pick_device
 

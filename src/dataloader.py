@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-from typing import Tuple, List, Optional
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -12,7 +12,7 @@ from .pipeline import Preprocessor
 CLASSES = list("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 CLASSES_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
 
-Pairs = List[Tuple[str, int]]
+Pairs = list[tuple[str, int]]
 
 
 def load_image_label_pairs(root_dir: str) -> Pairs:
@@ -90,7 +90,7 @@ def load_image_label_pairs(root_dir: str) -> Pairs:
     return pairs
 
 
-def split_by_subject(pairs, train_subjects, val_subjects) -> Tuple[Pairs, Pairs]:
+def split_by_subject(pairs, train_subjects, val_subjects) -> tuple[Pairs, Pairs]:
     """Split training and validation based on subjects
 
     Args:

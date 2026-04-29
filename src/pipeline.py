@@ -120,7 +120,7 @@ class Segmentation:
         cv2.drawContours(clean, [largest], -1, 255, cv2.FILLED)
         return largest, clean
 
-    def segment(self, img: np.ndarray) -> tuple:
+    def segment(self, img: np.ndarray) -> dict:
         """Full segmentation pipeline. Returns results, dictionary with all segmentation operations."""
         mask = self.ycrcb_mask(img)
         contour, clean_mask = self.get_largest_contour(mask)
@@ -276,9 +276,7 @@ class FeatureExtraction:
         background gradients (face, forearm) out of the feature vector.
         """
         canny_edges = self.extract_canny_edges(img)
-        hog_input = (
-            self.crop_to_contour(img, contour) if hand_bbox_crop else img
-        )
+        hog_input = self.crop_to_contour(img, contour) if hand_bbox_crop else img
         hog_feats, hog_img = self.extract_hog(hog_input)
         contour_dict = self.extract_contour_features(contour, mask)
         contour_arr = np.array(list(contour_dict.values()), dtype=np.float64)
