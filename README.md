@@ -23,6 +23,8 @@ sign-language-recognition/
 
 **NOTE: Project 4 update was moved to `docs/project04_update.md`**
 
+**NOTE: Project 5 (final) update was moved to `docs/project05_update.md`**
+
 # Presentation of project 
 This presentation of the project can be found [here](https://drive.google.com/file/d/1DI7TsgrMnAGYE0NXD8tr-18etQMK0ZW-/view?usp=sharing). 
 
@@ -32,3 +34,11 @@ The live demos to run test images on the CNN and SVM are found in scripts. The u
 python ./scripts/cnn_demo.py sample_data/test_data/P11_2_143.jpg --cnn-path results/cnn_results/final_cnn_model.pkl
 python ./scripts/svm_demo.py sample_data/test_data/P11_2_143.jpg --svm-path results/svm_results/svm_model.pkl
 ```
+
+# Random test sample (Project 5 deliverable)
+To pick one random sample from the held-out test set and run both classifiers on it:
+```bash
+python scripts/random_test_demo.py
+# or: python scripts/random_test_demo.py --seed 42   # for a reproducible pick
+```
+See `docs/project05_update.md` for the final report (test-set description, accuracy, analysis of the val→test drop, NN vs. classical comparison, and proposed improvements).
