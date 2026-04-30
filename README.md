@@ -24,4 +24,4 @@ sign-language-recognition/
 **NOTE: Project 4 update was moved to `docs/project04_update.md`**
 
 # Presentation of project 
-This presentation of the project can be found [here](https://drive.google.com/file/d/1DI7TsgrMnAGYE0NXD8tr-18etQMK0ZW-/view?usp=sharing). Additionally, the presentation video was shared in results folder. 
+This presentation of the project can be found [here](https://drive.google.com/file/d/1DI7TsgrMnAGYE0NXD8tr-18etQMK0ZW-/view?usp=sharing). 
