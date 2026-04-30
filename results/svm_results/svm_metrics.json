@@ -1,0 +1,29 @@
+{
+  "kernel": "rbf",
+  "pca": "true",
+  "C": 10.0,
+  "svm": {
+    "train": {
+      "accuracy": 1.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "macro_f1": 1.0,
+      "weighted_precision": 1.0,
+      "weighted_recall": 1.0,
+      "weighted_f1": 1.0,
+      "n_correct": 25200,
+      "n_total": 25200
+    },
+    "val": {
+      "accuracy": 0.737037037037037,
+      "macro_precision": 0.7837635175914011,
+      "macro_recall": 0.737037037037037,
+      "macro_f1": 0.7308469243642917,
+      "weighted_precision": 0.7837635175914011,
+      "weighted_recall": 0.737037037037037,
+      "weighted_f1": 0.7308469243642917,
+      "n_correct": 7960,
+      "n_total": 10800
+    }
+  }
+}

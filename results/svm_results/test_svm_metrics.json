@@ -1,0 +1,18 @@
+{
+  "kernel": "rbf",
+  "pca": "true",
+  "C": 10.0,
+  "svm": {
+    "test": {
+      "accuracy": 0.12857142857142856,
+      "macro_precision": 0.20626636737747847,
+      "macro_recall": 0.12839506172839507,
+      "macro_f1": 0.12368133701467035,
+      "weighted_precision": 0.20422318422318422,
+      "weighted_recall": 0.12857142857142856,
+      "weighted_f1": 0.12299286727858158,
+      "n_correct": 45,
+      "n_total": 350
+    }
+  }
+}
