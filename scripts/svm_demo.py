@@ -2,7 +2,7 @@
 """Run the full sign-language pipeline on a single image and print the prediction.
 
 Example:
-    python -m scripts.svm_demo sample_data/P1_B_52.jpg --svm-path results/svm_model.pkl
+    python -m scripts.svm_demo sample_data/test_data/P11_2_143.jpg --svm-path results/svm_results/svm_model.pkl
 """
 
 import argparse

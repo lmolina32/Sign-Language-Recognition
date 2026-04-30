@@ -25,3 +25,10 @@ sign-language-recognition/
 
 # Presentation of project 
 This presentation of the project can be found [here](https://drive.google.com/file/d/1DI7TsgrMnAGYE0NXD8tr-18etQMK0ZW-/view?usp=sharing). 
+
+# Live Demos for CNN and SVM 
+The live demos to run test images on the CNN and SVM are found in scripts. The usage is shown below.
+```bash
+python ./scripts/cnn_demo.py sample_data/test_data/P11_2_143.jpg --cnn-path results/cnn_results/final_cnn_model.pkl
+python ./scripts/svm_demo.py sample_data/test_data/P11_2_143.jpg --svm-path results/svm_results/svm_model.pkl
+```

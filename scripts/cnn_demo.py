@@ -2,7 +2,7 @@
 """Run the full sign-language pipeline on a single image and print the prediction.
 
 Example:
-    python -m scripts.cnn_demo sample_data/P1_B_52.jpg --cnn-path results/final_cnn_model.pkl
+    python -m scripts.cnn_demo sample_data/test_data/P11_2_143.jpg --cnn-path results/cnn_results/final_cnn_model.pkl
 """
 
 import argparse
