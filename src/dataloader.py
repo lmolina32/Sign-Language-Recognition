@@ -135,7 +135,9 @@ class ASLDataset(Dataset):
         path, label = self.pairs[key]
         img = cv2.imread(path)
         if img is None:
-            img = np.zeros((224, 224, 3), dtype=np.uint8)
+            img = np.zeros(
+                (self.cnn_input_size, self.cnn_input_size, 3), dtype=np.uint8
+            )
 
         # Hot path: only run the ops the CNN actually consumes. `preprocess_final`
         # resizes straight to the CNN input size so we avoid an extra resize pass.
