@@ -54,7 +54,7 @@ def main() -> None:
     parser.add_argument(
         "--svm-path",
         type=Path,
-        default=Path("results/svm_model.pkl"),
+        default=Path("results/models/svm_model.pkl"),
         help="Saved SVM pipeline (.pkl). Prediction is skipped if missing.",
     )
     parser.add_argument("--image-size", type=int, default=96)

@@ -59,7 +59,7 @@ def main() -> None:
     parser.add_argument(
         "--cnn-path",
         type=Path,
-        default=Path("results/final_cnn_model.pth"),
+        default=Path("results/models/final_cnn_model.pth"),
         help="Saved CNN pipeline (.pth). Prediction is skipped if missing.",
     )
     parser.add_argument("--image-size", type=int, default=96)
