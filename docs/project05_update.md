@@ -6,50 +6,59 @@ held-out test set the models had never seen during design or training.
 
 ## Test database
 
-**Source.** The test images come from the `test/` partition of the same Mendeley
-dataset our training data is drawn from
-(*ASL-HG American Sign Language Hand Gesture Image Dataset*, DOI `10.17632/j4y5w2c8w9`).
-The download script `scripts/download_dataset.sh` extracts both the `train/` partition
-(36,000 images, participants P1–P10) and the `test/` partition into `data/`. We never
-loaded the `test/` partition during Part 4 design — train and validation were both drawn
-from `train/`, split by participant ID (P1–P7 train, P8–P10 val).
+**Source.** We collected the test set ourselves on our own smartphones — it is *not*
+drawn from the Mendeley dataset that supplied training and validation data. Each team
+member shot **5 images per class across all 36 classes**, giving a target of 180 images
+per subject and **360 images total** (`5 × 36 × 2`). The two test subjects are
+labelled to keep them disjoint from the Mendeley participant IDs (P1–P10, used for
+train + val):
 
-**Size.** The test partition contains **350 images** spanning all 36 classes (`0`–`9` and
-`A`–`Z`), with ~10 images per class and **2 participants (P11 and P20)** that do not
-appear anywhere in the train or validation splits. A small 10-image sample of the
-test set is checked into the repository at `sample_data/test_data/` for reviewers who
-don't want to run the full download.
+- **P11 = Al** (180 images, 5 per class × 36 classes)
+- **P20 = Leo** (180 images, 5 per class × 36 classes)
 
-**What's different vs. train and validation.** Three differences matter, listed in
-order of how much they hurt our classifiers:
+Of the 360 we shot, **350 entered the evaluation run** that produced the metrics in
+`results/{svm,cnn}_results/test_*_metrics.json` — the 10-image gap is most likely a
+small number of capture / filename issues (10 of 360, ~2.8%). A 10-image visual sample
+of the test set is checked into the repository at `sample_data/test_data/` for
+reviewers who don't want to download or recreate the full set.
 
-1. **Native resolution.** Training images are pre-cropped JPEGs of roughly **150×150
-   pixels**. The test images, by contrast, are **raw smartphone photos at 3648×2736 or
-   4032×3024 pixels** — about 25× larger on each axis, ~600× more pixels. Our pipeline
-   resizes everything to 96×96 with `INTER_AREA` before HOG and the CNN ever see it,
-   but downsampling that aggressively is not the same as downsampling a tightly cropped
-   training image: a finger that is 30 px wide in a 150² training image becomes a
-   ~2-px stripe in the 96² resize of a 4032² test image. HOG cells (16×16 px) and the
-   first conv layer (3×3 kernels) can no longer resolve it.
-2. **Framing and context.** Training images are tightly cropped — the hand fills 70–90%
-   of the frame and the wrist is barely visible. Test images are wide-frame photos
-   where the hand fills only **30–50% of the frame**, with substantial visible wall
-   background, **forearm and wrist exposed**, sometimes shoulder/sleeve at the frame
-   edge, and a hard **shadow cast onto the wall** behind the hand. The YCrCb skin
-   segmenter we tuned on training data picks up the forearm and (in some shots) the
-   sleeve cuff, so the "hand contour" it returns is no longer hand-shaped.
-3. **Subject novelty.** P11 and P20 are completely unseen, just like P8–P10 were unseen
-   during training. The Part 4 val numbers already capture the cost of subject
-   generalization, so this factor alone is not what drops test accuracy from 75% to 12%
-   — but combined with (1) and (2) it compounds.
+**What's different vs. train and validation.** This is the core reason the test set
+exercises the program in a way train/val cannot. The Mendeley training data is a
+*curated* corpus — pre-cropped, small JPEGs, consistent framing — and using its own
+`test/` partition would only test against more of the same distribution. Our
+self-collected smartphone test set introduces a real domain shift along three axes,
+listed in order of how much they hurt our classifiers:
+
+1. **Native resolution.** Mendeley training images are pre-cropped JPEGs of roughly
+   **150×150 pixels** (~16 KB on disk). Our smartphone test images are raw photos at
+   **3648×2736 or 4032×3024 pixels** (~1.5 MB on disk) — about 25× larger on each axis,
+   ~600× more pixels. Our pipeline resizes everything to 96×96 with `INTER_AREA` before
+   HOG and the CNN ever see it, but downsampling that aggressively is not the same as
+   downsampling a tightly cropped training image: a finger that is 30 px wide in a
+   150² training image becomes a ~2-px stripe in the 96² resize of a 4032² test
+   image. HOG cells (16×16 px) and the first conv layer (3×3 kernels) can no longer
+   resolve it.
+2. **Framing and context.** Mendeley training images are tightly cropped — the hand
+   fills 70–90% of the frame and the wrist is barely visible. Our test images are
+   wide-frame phone photos where the hand fills only **30–50% of the frame**, with
+   substantial visible wall background, **forearm and wrist exposed**, sometimes
+   shoulder/sleeve at the frame edge, and a hard **shadow cast onto the wall** behind
+   the hand. The YCrCb skin segmenter we tuned on training data picks up the forearm
+   and (in some shots) the sleeve cuff, so the "hand contour" it returns is no longer
+   hand-shaped.
+3. **Subject novelty.** P11 and P20 are completely unseen, just like P8–P10 were
+   unseen during training. Part 4 val numbers already capture the cost of subject
+   generalization, so subject novelty alone is not what drops test accuracy from 75%
+   to 12% — but combined with (1) and (2) it compounds.
 
 **Why these differences are sufficient to test the final program.** The spec asks for
 "unknown data" and the deployment scenario we care about is exactly this: a user picks
-up their phone, holds out a hand, and snaps a picture. The training data is a curated,
-pre-cropped dataset; the test data is raw camera output. If our pipeline only works on
-the curated distribution, that's not a working classifier — it's a memorizer of the
-training photographer's cropping conventions. The resolution + framing shift forces us
-to confront that.
+up their phone, holds out a hand, and snaps a picture. The Mendeley training data is a
+curated, pre-cropped dataset; our test data is raw camera output collected by us with
+no curation. If our pipeline only works on the curated distribution, that's not a
+working classifier — it's a memorizer of the original photographer's cropping
+conventions. The resolution + framing shift, combined with the subject novelty,
+forces the program to confront that.
 
 ## Test accuracy
 
