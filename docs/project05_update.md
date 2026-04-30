@@ -16,11 +16,11 @@ train + val):
 - **P11 = Al** (180 images, 5 per class × 36 classes)
 - **P20 = Leo** (180 images, 5 per class × 36 classes)
 
-Of the 360 we shot, **350 entered the evaluation run** that produced the metrics in
-`results/{svm,cnn}_results/test_*_metrics.json` — the 10-image gap is most likely a
-small number of capture / filename issues (10 of 360, ~2.8%). A 10-image visual sample
-of the test set is checked into the repository at `sample_data/test_data/` for
-reviewers who don't want to download or recreate the full set.
+Of the 360 we shot, **10 were pulled out as a visual sample** and checked into the
+repository at `sample_data/test_data/` (so reviewers can see the test distribution
+without downloading the full set), leaving **350 images for the evaluation run** that
+produced the metrics in `results/{svm,cnn}_results/test_*_metrics.json`
+(`360 − 10 = 350`).
 
 **What's different vs. train and validation.** This is the core reason the test set
 exercises the program in a way train/val cannot. The Mendeley training data is a
